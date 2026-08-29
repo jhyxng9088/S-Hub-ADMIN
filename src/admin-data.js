@@ -33,6 +33,12 @@ export async function loadOverviewData() {
   return payload.data
 }
 
+export async function loadClassDetails(classId) {
+  if (!classId) throw new Error('반 식별자가 없어.')
+  const { payload } = await callAdminApi('admin-class-details', { classId })
+  return payload.data
+}
+
 export async function loadStudentDetails(user) {
   if (!user?.studentKey) return { todoState: [], identityCount: 0 }
   const { payload } = await callAdminApi('admin-console', {
