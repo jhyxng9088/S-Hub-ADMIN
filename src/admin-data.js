@@ -1,21 +1,34 @@
 import { ensureAdminSession } from './firebase'
 
 const ADMIN_API_BASE = 'https://school-reminder-backend.vercel.app/api'
+const REQUEST_TIMEOUT_MS = 12_000
 
 async function callAdminApi(path, body) {
   const user = await ensureAdminSession()
   const token = await user.getIdToken(true)
-  const response = await fetch(`${ADMIN_API_BASE}/${path}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body || {}),
-  })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.message || '관리자 서버 요청에 실패했어.')
-  return { user, payload }
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(`${ADMIN_API_BASE}/${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body || {}),
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.message || '관리자 서버 요청에 실패했어.')
+    return { user, payload }
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('관리자 서버 응답이 늦어. 잠시 후 새로고침해 줘.')
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 export async function loadAdminIdentity() {
@@ -31,6 +44,7 @@ export async function bootstrapAdmin(secret) {
 export async function loadOverviewData() {
   const { payload } = await callAdminApi('admin-overview-v2', {})
   const data = payload.data || null
+  if (!data) throw new Error('관리자 데이터 응답이 비어 있어.')
   try {
     window.__SHUB_ADMIN_OVERVIEW__ = data
     window.dispatchEvent(new CustomEvent('shub:admin-overview', { detail: data }))
