@@ -29,8 +29,15 @@ export async function bootstrapAdmin(secret) {
 }
 
 export async function loadOverviewData() {
-  const { payload } = await callAdminApi('admin-console', { action: 'overview' })
-  return payload.data
+  const { payload } = await callAdminApi('admin-overview-v2', {})
+  const data = payload.data || null
+  try {
+    window.__SHUB_ADMIN_OVERVIEW__ = data
+    window.dispatchEvent(new CustomEvent('shub:admin-overview', { detail: data }))
+  } catch {
+    // Rendering must not depend on the optional device badge enhancer.
+  }
+  return data
 }
 
 export async function loadClassDetails(classId) {
