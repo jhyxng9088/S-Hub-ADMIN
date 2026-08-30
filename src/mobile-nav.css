@@ -1,0 +1,35 @@
+@media (max-width: 900px) {
+  .mobile-nav.five-items {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 4px;
+    width: min(430px, calc(100% - 20px));
+    padding: 6px;
+    border-radius: 24px;
+  }
+
+  .mobile-nav.five-items button {
+    min-width: 0;
+    height: 58px;
+    justify-content: center;
+    padding: 7px 2px;
+    border-radius: 17px;
+  }
+
+  .mobile-nav.five-items button span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    letter-spacing: -0.03em;
+  }
+
+  .mobile-nav.five-items svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .content {
+    padding-bottom: 104px;
+  }
+}
