@@ -21,7 +21,11 @@ async function callAdminApi(path, body) {
       signal: controller.signal,
     })
     const payload = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(payload.message || '관리자 서버 요청에 실패했어.')
+    if (!response.ok) {
+      const error = new Error(payload.message || '관리자 서버 요청에 실패했어.')
+      error.status = response.status
+      throw error
+    }
     return { user, payload }
   } catch (error) {
     if (error?.name === 'AbortError') throw new Error('관리자 서버 응답이 늦어. 잠시 후 새로고침해 줘.')
@@ -42,8 +46,18 @@ export async function bootstrapAdmin(secret) {
 }
 
 export async function loadOverviewData() {
-  const { payload } = await callAdminApi('admin-overview-v3', {})
-  const data = payload.data || null
+  let result
+  try {
+    result = await callAdminApi('admin-overview-v3', {})
+  } catch (error) {
+    // V3 removes the Firestore collection-group index dependency. While a new
+    // backend deployment is temporarily unavailable, keep the admin app usable
+    // with the already-deployed quota-efficient V2 endpoint instead of failing.
+    if (error?.status !== 404) throw error
+    result = await callAdminApi('admin-overview-v2', {})
+  }
+
+  const data = result.payload.data || null
   if (!data) throw new Error('관리자 데이터 응답이 비어 있어.')
   try {
     window.__SHUB_ADMIN_OVERVIEW__ = data
