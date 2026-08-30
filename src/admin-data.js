@@ -42,7 +42,7 @@ export async function bootstrapAdmin(secret) {
 }
 
 export async function loadOverviewData() {
-  const { payload } = await callAdminApi('admin-overview-v2', {})
+  const { payload } = await callAdminApi('admin-overview-v3', {})
   const data = payload.data || null
   if (!data) throw new Error('관리자 데이터 응답이 비어 있어.')
   try {
