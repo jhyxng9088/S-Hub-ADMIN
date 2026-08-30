@@ -23,6 +23,7 @@ function matchUserFromRow(row, users) {
 function enhanceRows(data) {
   const users = Array.isArray(data?.users) ? data.users : []
   if (!users.length) return
+
   document.querySelectorAll('.student-row.detailed').forEach((row) => {
     const user = matchUserFromRow(row, users)
     if (!user) return
@@ -32,8 +33,10 @@ function enhanceRows(data) {
       badge.className = 'device-info-badge'
       row.querySelector('.student-main strong')?.appendChild(badge)
     }
-    badge.textContent = deviceText(user)
-    badge.dataset.device = String(user.deviceType || 'unknown')
+    const nextText = deviceText(user)
+    if (badge.textContent !== nextText) badge.textContent = nextText
+    const nextDevice = String(user.deviceType || 'unknown')
+    if (badge.dataset.device !== nextDevice) badge.dataset.device = nextDevice
   })
 
   document.querySelectorAll('.detail-sheet.expanded').forEach((sheet) => {
@@ -86,8 +89,23 @@ function installStyle() {
   document.head.appendChild(style)
 }
 
+let scheduled = false
+let pendingData = null
+
+function scheduleEnhance(data) {
+  if (data) pendingData = data
+  if (scheduled) return
+  scheduled = true
+  const run = () => {
+    scheduled = false
+    enhanceRows(pendingData || window.__SHUB_ADMIN_OVERVIEW__)
+  }
+  if (document.visibilityState === 'hidden') window.setTimeout(run, 0)
+  else window.requestAnimationFrame(run)
+}
+
 installStyle()
-window.addEventListener('shub:admin-overview', (event) => enhanceRows(event.detail))
-const observer = new MutationObserver(() => enhanceRows(window.__SHUB_ADMIN_OVERVIEW__))
-observer.observe(document.documentElement, { childList: true, subtree: true })
-window.setTimeout(() => enhanceRows(window.__SHUB_ADMIN_OVERVIEW__), 0)
+window.addEventListener('shub:admin-overview', (event) => scheduleEnhance(event.detail))
+const observer = new MutationObserver(() => scheduleEnhance(window.__SHUB_ADMIN_OVERVIEW__))
+observer.observe(document.getElementById('root') || document.documentElement, { childList: true, subtree: true })
+window.setTimeout(() => scheduleEnhance(window.__SHUB_ADMIN_OVERVIEW__), 0)
