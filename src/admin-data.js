@@ -3,7 +3,7 @@ import { ensureAdminSession } from './firebase'
 const ADMIN_API_BASE = 'https://school-reminder-backend.vercel.app/api'
 const REQUEST_TIMEOUT_MS = 12_000
 const OVERVIEW_CACHE_KEY = 'shub.admin.overview.v2'
-const OVERVIEW_CACHE_TTL_MS = 5 * 60 * 1000
+const OVERVIEW_CACHE_TTL_MS = 15 * 60 * 1000
 let overviewPending = null
 
 function readOverviewCache() {
