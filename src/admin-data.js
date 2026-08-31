@@ -6,6 +6,16 @@ const OVERVIEW_CACHE_KEY = 'shub.admin.overview.v2'
 const OVERVIEW_CACHE_TTL_MS = 15 * 60 * 1000
 let overviewPending = null
 
+function publishOverview(data) {
+  try {
+    window.__SHUB_ADMIN_OVERVIEW__ = data
+    window.dispatchEvent(new CustomEvent('shub:admin-overview', { detail: data }))
+  } catch {
+    // Rendering must not depend on the optional device badge enhancer.
+  }
+  return data
+}
+
 function readOverviewCache() {
   try {
     const stored = JSON.parse(localStorage.getItem(OVERVIEW_CACHE_KEY) || 'null')
@@ -76,7 +86,7 @@ export async function bootstrapAdmin(secret) {
 export async function loadOverviewData({ force = false } = {}) {
   if (!force) {
     const cached = readOverviewCache()
-    if (cached) return cached
+    if (cached) return publishOverview(cached)
   }
   if (overviewPending) return overviewPending
 
@@ -95,13 +105,7 @@ export async function loadOverviewData({ force = false } = {}) {
     const data = result.payload.data || null
     if (!data) throw new Error('관리자 데이터 응답이 비어 있어.')
     writeOverviewCache(data)
-    try {
-      window.__SHUB_ADMIN_OVERVIEW__ = data
-      window.dispatchEvent(new CustomEvent('shub:admin-overview', { detail: data }))
-    } catch {
-      // Rendering must not depend on the optional device badge enhancer.
-    }
-    return data
+    return publishOverview(data)
   })().finally(() => { overviewPending = null })
 
   return overviewPending
