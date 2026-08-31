@@ -2,10 +2,48 @@ import { ensureAdminSession } from './firebase'
 
 const ADMIN_API_BASE = 'https://school-reminder-backend.vercel.app/api'
 const REQUEST_TIMEOUT_MS = 12_000
+const OVERVIEW_CACHE_KEY = 'shub.admin.overview.v2'
+const OVERVIEW_CACHE_TTL_MS = 15 * 60 * 1000
+let overviewPending = null
+
+function publishOverview(data) {
+  try {
+    window.__SHUB_ADMIN_OVERVIEW__ = data
+    window.dispatchEvent(new CustomEvent('shub:admin-overview', { detail: data }))
+  } catch {
+    // Rendering must not depend on the optional device badge enhancer.
+  }
+  return data
+}
+
+function readOverviewCache() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(OVERVIEW_CACHE_KEY) || 'null')
+    if (!stored || typeof stored !== 'object') return null
+    if (!stored.data || typeof stored.data !== 'object') return null
+    const cachedAt = Number(stored.cachedAt || 0)
+    if (!cachedAt || Date.now() - cachedAt > OVERVIEW_CACHE_TTL_MS) return null
+    return stored.data
+  } catch {
+    return null
+  }
+}
+
+function writeOverviewCache(data) {
+  try {
+    localStorage.setItem(OVERVIEW_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data }))
+  } catch {
+    // The API response remains authoritative if local storage is unavailable.
+  }
+}
+
+export function clearOverviewCache() {
+  try { localStorage.removeItem(OVERVIEW_CACHE_KEY) } catch {}
+}
 
 async function callAdminApi(path, body) {
   const user = await ensureAdminSession()
-  const token = await user.getIdToken(true)
+  const token = await user.getIdToken()
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -45,27 +83,32 @@ export async function bootstrapAdmin(secret) {
   return payload
 }
 
-export async function loadOverviewData() {
-  let result
-  try {
-    result = await callAdminApi('admin-overview-v3', {})
-  } catch (error) {
-    // V3 removes the Firestore collection-group index dependency. While a new
-    // backend deployment is temporarily unavailable, keep the admin app usable
-    // with the already-deployed quota-efficient V2 endpoint instead of failing.
-    if (error?.status !== 404) throw error
-    result = await callAdminApi('admin-overview-v2', {})
+export async function loadOverviewData({ force = false } = {}) {
+  if (!force) {
+    const cached = readOverviewCache()
+    if (cached) return publishOverview(cached)
   }
+  if (overviewPending) return overviewPending
 
-  const data = result.payload.data || null
-  if (!data) throw new Error('관리자 데이터 응답이 비어 있어.')
-  try {
-    window.__SHUB_ADMIN_OVERVIEW__ = data
-    window.dispatchEvent(new CustomEvent('shub:admin-overview', { detail: data }))
-  } catch {
-    // Rendering must not depend on the optional device badge enhancer.
-  }
-  return data
+  overviewPending = (async () => {
+    let result
+    try {
+      result = await callAdminApi('admin-overview-v3', { force: Boolean(force) })
+    } catch (error) {
+      // V3 removes the Firestore collection-group index dependency. While a new
+      // backend deployment is temporarily unavailable, keep the admin app usable
+      // with the already-deployed quota-efficient V2 endpoint instead of failing.
+      if (error?.status !== 404) throw error
+      result = await callAdminApi('admin-overview-v2', {})
+    }
+
+    const data = result.payload.data || null
+    if (!data) throw new Error('관리자 데이터 응답이 비어 있어.')
+    writeOverviewCache(data)
+    return publishOverview(data)
+  })().finally(() => { overviewPending = null })
+
+  return overviewPending
 }
 
 export async function loadClassDetails(classId) {
@@ -92,6 +135,7 @@ export async function setStudentAccountStatus(user, status, reason = '') {
     status,
     reason: String(reason || '').slice(0, 240),
   })
+  clearOverviewCache()
   return payload
 }
 
@@ -102,5 +146,6 @@ export async function permanentlyDeleteStudent(user, reason = '') {
     studentKey: user.studentKey,
     reason: String(reason || '').slice(0, 240),
   })
+  clearOverviewCache()
   return payload
 }
